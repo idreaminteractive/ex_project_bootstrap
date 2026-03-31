@@ -1,0 +1,15 @@
+[env]
+ELIXIR_ERL_OPTIONS="+fnu"
+DOPPLER_TOKEN=""
+MIX_OS_DEPS_COMPILE_PARTITION_COUNT=4
+
+[tools]
+node = "24.11.0"
+elixir = "1.19.4"
+erlang = "28.2"
+task = "latest"
+doppler = "latest"
+pulumi = "latest"
+gcloud = "latest"
+cloud-sql-proxy = "latest"
+

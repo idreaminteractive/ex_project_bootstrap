@@ -3,12 +3,12 @@ defmodule Mix.Tasks.ExProjectBootstrap.Install.Docs do
 
   @spec short_doc() :: String.t()
   def short_doc do
-    "A short description of your task"
+    "iDream Specific bootstrap task"
   end
 
   @spec example() :: String.t()
   def example do
-    "mix ex_project_bootstrap.install --example arg"
+    "mix ex_project_bootstrap.install"
   end
 
   @spec long_doc() :: String.t()
@@ -16,7 +16,7 @@ defmodule Mix.Tasks.ExProjectBootstrap.Install.Docs do
     """
     #{short_doc()}
 
-    Longer explanation of your task
+    Installs all then things i like. 
 
     ## Example
 
@@ -45,12 +45,22 @@ if Code.ensure_loaded?(Igniter) do
         # Groups allow for overlapping arguments for tasks by the same author
         # See the generators guide for more.
         group: :ex_project_bootstrap,
-        # *other* dependencies to add
-        # i.e `{:foo, "~> 2.0"}`
         adds_deps: [],
-        # *other* dependencies to add and call their associated installers, if they exist
-        # i.e `{:foo, "~> 2.0"}`
-        installs: [],
+        installs: [
+          # {:ash, "~> 3.0"},
+          # {:ash_phoenix, "~> 2.0"},
+          # {:ash_postgres, "~> 2.0"},
+          # {:ash_authentication, "~> 4.0"},
+          # {:ash_authentication_phoenix, "~> 2.0"},
+          # {:ash_admin, "~> 0.14"},
+          # {:oban, "~> 2.0"},
+          # {:oban_web, "~> 2.0"},
+          # {:ash_oban, "~> 0.8"},
+          # {:ash_state_machine, "~> 0.2"},
+          # {:tidewave, "~> 0.5", only: [:dev]},
+          # {:usage_rules, "~> 1.0", only: [:dev]},
+          # {:error_tracker, "~> 0.8.0"}
+        ],
         # An example invocation
         example: __MODULE__.Docs.example(),
         # A list of environments that this should be installed in.
@@ -61,7 +71,11 @@ if Code.ensure_loaded?(Igniter) do
         # This ensures your option schema includes options from nested tasks
         composes: [],
         # `OptionParser` schema
-        schema: [],
+        # these will be passed into the other installers too!
+        schema: [
+          auth_strategy: :csv,
+          setup: :boolean
+        ],
         # Default values for the options in the `schema`
         defaults: [],
         # CLI aliases
@@ -74,8 +88,26 @@ if Code.ensure_loaded?(Igniter) do
     @impl Igniter.Mix.Task
     def igniter(igniter) do
       # Do your work here and return an updated igniter
+
       igniter
-      |> Igniter.add_warning("mix ex_project_bootstrap.install is not yet implemented")
+      |> Igniter.create_new_file(
+        "Taskfile.yml",
+        File.read!(Path.join(__DIR__, "../../../priv/templates/Taskfile.yml"))
+      )
+      |> Igniter.create_new_file(
+        "pull-data.sh",
+        File.read!(Path.join(__DIR__, "../../../priv/templates/pull-data.sh"))
+      )
+      |> Igniter.create_new_file(
+        "mise.toml",
+        File.read!(Path.join(__DIR__, "../../../priv/templates/mise.toml"))
+      )
+      |> Igniter.create_new_file(
+        "usage_rules.md",
+        File.read!(Path.join(__DIR__, "../../../priv/templates/usage_rules.md"))
+      )
+
+      # create our mise file
     end
   end
 else

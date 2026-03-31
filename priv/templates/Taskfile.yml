@@ -1,0 +1,61 @@
+version: '3'
+
+tasks:
+  init:
+    cmds:
+      - mix deps.get
+      - mix compile
+      - cd assets && npm install
+      - cd ..
+
+  dev:
+    cmds:
+      - doppler run -- iex -S mix phx.server
+
+  pulldata:
+    desc: "Dump remote database and restore to local using Docker"
+    cmds:
+      - echo "Dumping remote database..."
+      - doppler run -- ./scripts/pull-data.sh
+
+  format:
+    cmds:
+      - mix format
+      - npx -y prettier --write .
+
+  prepush:
+    cmds: 
+      - task: format
+      - mix ash.codegen --check
+      - mix compile --warnings-as-errors
+      - task: test
+
+  codegen:
+    cmds:
+      - mix ash.codegen --dev 
+      - mix ash.migrate
+
+  codegen-name:
+    cmds:
+      - mix ash.codegen {{.CLI_ARGS}}
+      - mix ash.migrate
+
+  test:
+    cmds:
+      - MIX_ENV=test mix ash_postgres.drop 
+      - mix test
+
+  test-focus:
+    cmds:
+      - MIX_ENV=test mix ash_postgres.drop 
+      - mix test --only focus
+
+  clear-ports:
+    cmds:
+      - fuser -k 4000/tcp || true
+
+  usage-rules:
+    cmds:
+      - rm -f AGENTS.md
+      - mix usage_rules.sync  --yes
+      - cat usage_rules.md AGENTS.md > tmp.md && mv tmp.md AGENTS.md
