@@ -92,20 +92,32 @@ if Code.ensure_loaded?(Igniter) do
       igniter
       |> Igniter.create_new_file(
         "Taskfile.yml",
-        File.read!(Path.join(__DIR__, "../../../priv/templates/Taskfile.yml"))
+        File.read!(Path.join(__DIR__, "../../../priv/templates/Taskfile.yml")),
+        on_exists: :warning
       )
       |> Igniter.create_new_file(
         "pull-data.sh",
-        File.read!(Path.join(__DIR__, "../../../priv/templates/pull-data.sh"))
+        File.read!(Path.join(__DIR__, "../../../priv/templates/pull-data.sh")),
+        on_exists: :warning
       )
       |> Igniter.create_new_file(
         "mise.toml",
-        File.read!(Path.join(__DIR__, "../../../priv/templates/mise.toml"))
+        File.read!(Path.join(__DIR__, "../../../priv/templates/mise.toml")),
+        on_exists: :warning
       )
       |> Igniter.create_new_file(
         "usage_rules.md",
-        File.read!(Path.join(__DIR__, "../../../priv/templates/usage_rules.md"))
+        File.read!(Path.join(__DIR__, "../../../priv/templates/usage_rules.md")),
+        on_exists: :warning
       )
+      |> Igniter.create_new_file(
+        "firefly_bootstrap.sh",
+        File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
+        on_exists: :warning
+      )
+
+      # add the values into the runtime config
+      # add tidewave config to allow remote 
 
       # create our mise file
     end
