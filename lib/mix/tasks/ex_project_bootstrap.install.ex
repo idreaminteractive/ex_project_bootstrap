@@ -375,7 +375,6 @@ if Code.ensure_loaded?(Igniter) do
             {:ok, zipper}
           else
             app_module = Igniter.Project.Module.module_name(igniter, "")
-            web_module = Igniter.Libs.Phoenix.web_module(igniter)
 
             {:ok,
              Igniter.Code.Common.add_code(zipper, """
