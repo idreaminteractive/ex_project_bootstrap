@@ -363,16 +363,21 @@ if Code.ensure_loaded?(Igniter) do
 
       {:ok, igniter} =
         Igniter.Project.Module.find_and_update_module(igniter, conn_case, fn zipper ->
+          dbg("HERE")
+
           already_present =
             Sourceror.Zipper.find(zipper, fn node ->
               match?({:def, _, [{:insert_and_authenticate_user, _, _} | _]}, node) or
                 match?({:def, _, [{:log_in_user, _, _} | _]}, node)
             end)
 
+          dbg(already_present)
+
           if already_present do
             {:ok, zipper}
           else
             app_module = Igniter.Project.Module.module_name(igniter, "")
+            dbg(app_module)
 
             {:ok,
              Igniter.Code.Common.add_code(zipper, """
