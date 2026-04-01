@@ -101,6 +101,7 @@ if Code.ensure_loaded?(Igniter) do
       |> update_endpoint_config(endpoint_module_name)
       |> configure_test_config(endpoint_module_name)
       |> update_page_controller()
+      |> add_dashboard_route()
     end
 
     defp update_endpoint_config(igniter, endpoint_module_name) do
@@ -200,6 +201,53 @@ if Code.ensure_loaded?(Igniter) do
         File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
         on_exists: :warning
       )
+    end
+
+    defp add_dashboard_route(igniter) do
+      router = Igniter.Libs.Phoenix.web_module_name(igniter, "Router")
+
+      {:ok, igniter} =
+        Igniter.Project.Module.find_and_update_module(igniter, router, fn zipper ->
+          alias Sourceror.Zipper
+
+          session_zip =
+            Zipper.find(zipper, fn node ->
+              match?(
+                {:ash_authentication_live_session, _,
+                 [{:__block__, _, [:authenticated_routes]} | _]},
+                node
+              )
+            end)
+
+          if session_zip != nil do
+            case Igniter.Code.Common.move_to_do_block(session_zip) do
+              {:ok, body_zip} ->
+                already_has_route =
+                  Zipper.find(body_zip, fn node ->
+                    match?(
+                      {:live, _, [{:__block__, _, ["/dashboard"]} | _]},
+                      node
+                    )
+                  end)
+
+                if already_has_route do
+                  {:ok, body_zip}
+                else
+                  {:ok,
+                   Igniter.Code.Common.add_code(body_zip, ~s|live "/dashboard", DashboardLive|)}
+                end
+
+              :error ->
+                {:warning,
+                 "could not enter ash_authentication_live_session block in #{inspect(router)}"}
+            end
+          else
+            {:warning,
+             "could not find ash_authentication_live_session :authenticated_routes in #{inspect(router)}"}
+          end
+        end)
+
+      igniter
     end
 
     defp update_page_controller(igniter) do
