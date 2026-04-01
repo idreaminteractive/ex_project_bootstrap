@@ -224,7 +224,7 @@ if Code.ensure_loaded?(Igniter) do
              %{conn: conn} do
           conn
           |> visit(~p"/dashboard")
-          |> assert_path(~"/sign-in")
+          |> assert_path(~p"/sign-in")
         end
 
         test "authenticated user visiting /dashboard sees the dashboard", %{conn: conn} do
