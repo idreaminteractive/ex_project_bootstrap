@@ -59,8 +59,7 @@ if Code.ensure_loaded?(Igniter) do
           {:ash_state_machine, "~> 0.2"},
           {:tidewave, "~> 0.5", only: [:dev]},
           {:usage_rules, "~> 1.0", only: [:dev]},
-          {:error_tracker, "~> 0.8.0"},
-          {:phoenix_test, "~> 0.10.0", only: :test, runtime: false}
+          {:error_tracker, "~> 0.8.0"}
         ],
         # An example invocation
         example: __MODULE__.Docs.example(),
@@ -89,67 +88,30 @@ if Code.ensure_loaded?(Igniter) do
     @impl Igniter.Mix.Task
     def igniter(igniter) do
       # Do your work here and return an updated igniter
-      dbg(igniter.assigns)
-
-      igniter =
-        igniter
-        |> Igniter.create_new_file(
-          "Taskfile.yml",
-          File.read!(Path.join(__DIR__, "../../../priv/templates/Taskfile.yml")),
-          on_exists: :warning
-        )
-        |> Igniter.create_new_file(
-          "pull-data.sh",
-          File.read!(Path.join(__DIR__, "../../../priv/templates/pull-data.sh")),
-          on_exists: :warning
-        )
-        |> Igniter.create_new_file(
-          "mise.toml",
-          File.read!(Path.join(__DIR__, "../../../priv/templates/mise.toml")),
-          on_exists: :warning
-        )
-        |> Igniter.create_new_file(
-          "usage_rules.md",
-          File.read!(Path.join(__DIR__, "../../../priv/templates/usage_rules.md")),
-          on_exists: :warning
-        )
-        |> Igniter.create_new_file(
-          "firefly_bootstrap.sh",
-          File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
-          on_exists: :warning
-        )
 
       app_name = Igniter.Project.Application.app_name(igniter)
       endpoint_module_name = Module.concat([Igniter.Libs.Phoenix.web_module(igniter), "Endpoint"])
 
-      igniter =
-        igniter
-        |> Igniter.Project.Config.configure_runtime_env(
-          :dev,
-          app_name,
-          [endpoint_module_name, :http],
-          {:code,
-           Sourceror.parse_string!("""
-            port = String.to_integer(System.get_env("PORT", "4000"))
-           fly_6pn_ip =
-           case :inet.gethostbyname(~c'fly-local-6pn', :inet6) do {:ok, {:hostent, _, _, _, _, [ip | _]}} ->
-            ip
+      igniter
+      |> copy_supporting_files()
+      |> Igniter.Project.Deps.add_dep({:phoenix_test, "~> 0.10.0", only: [:test], runtime: false})
+      |> update_runtime_config(app_name, endpoint_module_name)
+      |> update_endpoint_config(endpoint_module_name)
+      |> configure_test_config(endpoint_module_name)
+      |> update_page_controller()
+      |> add_dashboard_route()
+      |> update_page_html()
+      |> delete_home_heex_template()
+      |> create_dashboard_live()
+      |> update_conn_case()
+      |> update_conn_case_using()
+      |> update_page_controller_test()
+      |> create_generator()
+      |> create_helpers()
+      |> create_dashboard_live_test()
+    end
 
-           error ->
-            IO.inspect(error, label: "fly-local-6pn lookup failed, binding to ipv4")
-
-            # we have a safe fallback if we are running locally here
-            {0, 0, 0, 0}
-           end
-
-           IO.inspect(fly_6pn_ip, label: "binding to")
-
-             [ip: fly_6pn_ip, port: port]
-              # config :ai_bootstrap, AiBootstrapWeb.Endpoint, http: [ip: fly_6pn_ip, port: port]
-
-           """)}
-        )
-
+    defp update_endpoint_config(igniter, endpoint_module_name) do
       tidewave_block = """
       if Mix.env() == :dev do
         plug Tidewave, allow_remote_access: true
@@ -217,8 +179,489 @@ if Code.ensure_loaded?(Igniter) do
         end)
 
       igniter
+    end
 
-      # create the plain html ex w/ links to sign in and register
+    defp copy_supporting_files(igniter) do
+      igniter
+      |> Igniter.create_new_file(
+        "Taskfile.yml",
+        File.read!(Path.join(__DIR__, "../../../priv/templates/Taskfile.yml")),
+        on_exists: :warning
+      )
+      |> Igniter.create_new_file(
+        "pull-data.sh",
+        File.read!(Path.join(__DIR__, "../../../priv/templates/pull-data.sh")),
+        on_exists: :warning
+      )
+      |> Igniter.create_new_file(
+        "mise.toml",
+        File.read!(Path.join(__DIR__, "../../../priv/templates/mise.toml")),
+        on_exists: :warning
+      )
+      |> Igniter.create_new_file(
+        "usage_rules.md",
+        File.read!(Path.join(__DIR__, "../../../priv/templates/usage_rules.md")),
+        on_exists: :warning
+      )
+      |> Igniter.create_new_file(
+        "firefly_bootstrap.sh",
+        File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
+        on_exists: :warning
+      )
+    end
+
+    defp create_dashboard_live_test(igniter) do
+      web_module = Igniter.Libs.Phoenix.web_module(igniter)
+      test_module = Igniter.Libs.Phoenix.web_module_name(igniter, "DashboardLiveTest")
+
+      Igniter.Project.Module.create_module(
+        igniter,
+        test_module,
+        """
+        use #{inspect(web_module)}.ConnCase, async: true
+
+        test "unauthenticated user visiting /dashboard is redirected to sign-in and sees sign in link",
+             %{conn: conn} do
+          conn
+          |> visit(~p"/dashboard")
+          |> assert_path(~p"/sign-in")
+        end
+
+        test "authenticated user visiting /dashboard sees the dashboard", %{conn: conn} do
+          %{conn: conn} = insert_and_authenticate_user(%{conn: conn})
+
+          conn
+          |> visit("/dashboard")
+          |> assert_has("h1", text: "Hello")
+          |> assert_has("a[href='/sign-out']", text: "Sign out")
+        end
+        """,
+        path: "test/#{Macro.underscore(web_module)}/live/dashboard_live_test.exs",
+        on_exists: :warning
+      )
+    end
+
+    defp create_helpers(igniter) do
+      app_module = Igniter.Project.Module.module_name_prefix(igniter)
+      helpers_module = Igniter.Project.Module.module_name(igniter, "Test.Support.Helpers")
+
+      Igniter.Project.Module.create_module(
+        igniter,
+        helpers_module,
+        """
+        require Ash.Query
+
+        @doc \"\"\"
+        Generate a timestamp at the specified offset in the past.
+
+        ## Examples
+
+            iex> #{inspect(app_module)}.Support.Helpers.time_ago(5, :second)
+        \"\"\"
+        def ago(seconds, unit) when is_integer(seconds) do
+          DateTime.utc_now()
+          |> DateTime.add(-seconds, unit)
+        end
+
+        @doc \"\"\"
+        Fetch a record of the given resource by its `name` attribute.
+        Will return at most one record, or nil.
+
+        Any opts passed in as the third argument will be passed directly to
+        the read action of the resource.
+
+        ## Examples
+
+            iex> #{inspect(app_module)}.Support.Helpers.get_by_name(User, :admin)
+        \"\"\"
+        def get_by_name(resource, name, opts \\\\ []) do
+          resource
+          |> Ash.Query.for_read(:read, %{}, opts)
+          |> Ash.Query.filter(name == ^name)
+          |> Ash.read_first!()
+        end
+
+        @doc \"\"\"
+        Fetch a record of the given resource by its `name` attribute.
+        Will raise a RuntimeError if no record matches.
+
+        The bang version of the `get_by_name` helper function.
+        \"\"\"
+        def get_by_name!(resource, name, opts \\\\ []) do
+          case get_by_name(resource, name, opts) do
+            nil -> raise RuntimeError, "No results returned"
+            result -> result
+          end
+        end
+
+        # ------ Selectors --------------------------------------------------------
+
+        @doc "HTML selector for flash messages."
+        def flash(type), do: ":not(#server-error, #client-error) > div.flash-\#{type}"
+
+        def flash_type(type), do: "#flash-\#{type}"
+
+        def link(href), do: "a[href='\#{href}']"
+
+        def clickable(event_name, record \\\\ nil) do
+          if record do
+            "[phx-value-id='\#{record.id}'][phx-click='\#{event_name}']"
+          else
+            "[phx-click='\#{event_name}']"
+          end
+        end
+
+        def drain_emails do
+          receive do
+            {:email, _email} -> drain_emails()
+          after
+            0 -> :ok
+          end
+        end
+
+        def recipient_address(%{address: address}), do: address
+        def recipient_address({_, address}), do: address
+        """,
+        path: "test/support/helpers.ex",
+        on_exists: :warning
+      )
+    end
+
+    defp update_conn_case_using(igniter) do
+      conn_case = Module.concat([Igniter.Libs.Phoenix.web_module(igniter), "ConnCase"])
+
+      case Igniter.Project.Module.find_and_update_module(igniter, conn_case, fn zipper ->
+             alias Sourceror.Zipper
+
+             # Find `import WebModule.ConnCase` inside the using block — insert after it
+             import_zip =
+               Zipper.find(zipper, fn node ->
+                 match?(
+                   {:import, _, [{:__aliases__, _, [_, :ConnCase]} | _]},
+                   node
+                 )
+               end)
+
+             if import_zip != nil do
+               already_has =
+                 Zipper.find(zipper, fn node ->
+                   match?({:import, _, [{:__aliases__, _, [:PhoenixTest]} | _]}, node)
+                 end)
+
+               if already_has do
+                 {:ok, zipper}
+               else
+                 {:ok, Igniter.Code.Common.add_code(import_zip, "import PhoenixTest")}
+               end
+             else
+               {:warning, "could not find import insertion point in #{inspect(conn_case)}"}
+             end
+           end) do
+        {:ok, igniter} -> igniter
+        {:error, igniter} -> Igniter.add_warning(igniter, "could not find #{inspect(conn_case)}")
+      end
+    end
+
+    defp update_page_controller_test(igniter) do
+      web_module = Igniter.Libs.Phoenix.web_module(igniter)
+      test_module = Igniter.Libs.Phoenix.web_module_name(igniter, "PageControllerTest")
+
+      new_body = """
+      use #{inspect(web_module)}.ConnCase, async: true
+
+      test "GET /", %{conn: conn} do
+        conn
+        |> visit(~p"/")
+        |> assert_has("h1", text: "Welcome")
+      end
+      """
+
+      case Igniter.Project.Module.find_and_update_module(igniter, test_module, fn zipper ->
+             {:ok, Igniter.Code.Common.replace_code(zipper, new_body)}
+           end) do
+        {:ok, igniter} ->
+          igniter
+
+        {:error, igniter} ->
+          Igniter.add_warning(igniter, "could not find #{inspect(test_module)}")
+      end
+    end
+
+    defp create_generator(igniter) do
+      app_module = Igniter.Project.Module.module_name_prefix(igniter)
+      generator_module = Igniter.Project.Module.module_name(igniter, "Test.Support.Generator")
+
+      Igniter.Project.Module.create_module(
+        igniter,
+        generator_module,
+        """
+        use Ash.Generator
+
+        def email() do
+          sequence(:email, &"user\#{&1}@example.com")
+        end
+
+        def user(opts \\\\ []) do
+          changeset_generator(#{inspect(app_module)}.Accounts.User, :register_with_password,
+            defaults: [
+              email: email(),
+              password: "password",
+              password_confirmation: "password"
+            ],
+            overrides: opts,
+            authorize?: false
+          )
+        end
+        """,
+        path: "test/support/generator.ex",
+        on_exists: :warning
+      )
+    end
+
+    defp update_conn_case(igniter) do
+      conn_case = Module.concat([Igniter.Libs.Phoenix.web_module(igniter), "ConnCase"])
+
+      {:ok, igniter} =
+        Igniter.Project.Module.find_and_update_module(igniter, conn_case, fn zipper ->
+          already_present =
+            Sourceror.Zipper.find(zipper, fn node ->
+              match?({:def, _, [{:insert_and_authenticate_user, _, _} | _]}, node) or
+                match?({:def, _, [{:log_in_user, _, _} | _]}, node)
+            end)
+
+          if already_present do
+            {:ok, zipper}
+          else
+            app_module = Igniter.Project.Module.module_name_prefix(igniter)
+            app_prefix = inspect(app_module)
+
+            {:ok,
+             Igniter.Code.Common.add_code(zipper, """
+             @doc \"\"\"
+             Setup helper that creates and then logs in users.
+
+                 setup :insert_and_authenticate_user
+
+             It stores an updated connection and a registered user in the
+             test context.
+             \"\"\"
+             def insert_and_authenticate_user(conn)
+
+             def insert_and_authenticate_user(%{conn: conn}) do
+               user = #{app_prefix}.Test.Support.Generator.generate(#{app_prefix}.Test.Support.Generator.user())
+
+               %{conn: log_in_user(conn, user), user: user}
+             end
+
+             def insert_and_authenticate_user(%Plug.Conn{} = conn) do
+               %{conn: conn}
+               |> insert_and_authenticate_user()
+               |> Map.fetch!(:conn)
+             end
+
+             @doc \"\"\"
+             Logs the given `user` into the `conn`.
+
+             It returns an updated `conn`.
+             \"\"\"
+             def log_in_user(conn, user) do
+               conn
+               |> Phoenix.ConnTest.init_test_session(%{})
+               |> AshAuthentication.Plug.Helpers.store_in_session(user)
+             end
+             """)}
+          end
+        end)
+
+      igniter
+    end
+
+    defp create_dashboard_live(igniter) do
+      web_module = Igniter.Libs.Phoenix.web_module(igniter)
+      dashboard_live = Igniter.Libs.Phoenix.web_module_name(igniter, "DashboardLive")
+
+      Igniter.Project.Module.create_module(
+        igniter,
+        dashboard_live,
+        """
+        use #{inspect(web_module)}, :live_view
+
+        on_mount {#{inspect(web_module)}.LiveUserAuth, :live_user_required}
+
+        def render(assigns) do
+          ~H\"\"\"
+          <Layouts.app flash={@flash}>
+            <div class="p-8">
+              <h1 class="text-3xl font-bold mb-6">Hello</h1>
+              <.link href="/sign-out" class="text-blue-600 hover:underline">
+                Sign out
+              </.link>
+            </div>
+          </Layouts.app>
+          \"\"\"
+        end
+        """,
+        path: "lib/#{Macro.underscore(web_module)}/live/dashboard_live.ex",
+        on_exists: :warning
+      )
+    end
+
+    defp delete_home_heex_template(igniter) do
+      web_module = Igniter.Libs.Phoenix.web_module(igniter)
+      path = "lib/#{Macro.underscore(web_module)}/controllers/page_html/home.html.heex"
+
+      if File.exists?(path) do
+        File.rm!(path)
+      end
+
+      igniter
+    end
+
+    defp update_page_html(igniter) do
+      page_html = Igniter.Libs.Phoenix.web_module_name(igniter, "PageHTML")
+
+      new_contents = """
+      @moduledoc \"\"\"
+      This module contains pages rendered by PageController.
+      \"\"\"
+      use #{inspect(Igniter.Libs.Phoenix.web_module(igniter))}, :html
+
+      def home(assigns) do
+        ~H\"\"\"
+        <div class="p-8">
+          <h1 class="text-3xl font-bold mb-6">Welcome</h1>
+          <nav class="flex flex-col gap-2">
+            <.link href="/sign-in" class="text-blue-600 hover:underline">Sign in</.link>
+            <.link href="/register" class="text-blue-600 hover:underline">Create an account</.link>
+          </nav>
+        </div>
+        \"\"\"
+      end
+      """
+
+      Igniter.Project.Module.find_and_update_or_create_module(
+        igniter,
+        page_html,
+        new_contents,
+        fn zipper ->
+          {:ok, Igniter.Code.Common.replace_code(zipper, new_contents)}
+        end,
+        path:
+          "lib/#{Macro.underscore(Igniter.Libs.Phoenix.web_module(igniter))}/controllers/page_html.ex"
+      )
+    end
+
+    defp add_dashboard_route(igniter) do
+      router = Igniter.Libs.Phoenix.web_module_name(igniter, "Router")
+
+      {:ok, igniter} =
+        Igniter.Project.Module.find_and_update_module(igniter, router, fn zipper ->
+          alias Sourceror.Zipper
+
+          session_zip =
+            Zipper.find(zipper, fn node ->
+              match?(
+                {:ash_authentication_live_session, _,
+                 [{:__block__, _, [:authenticated_routes]} | _]},
+                node
+              )
+            end)
+
+          if session_zip != nil do
+            case Igniter.Code.Common.move_to_do_block(session_zip) do
+              {:ok, body_zip} ->
+                already_has_route =
+                  Zipper.find(body_zip, fn node ->
+                    match?(
+                      {:live, _, [{:__block__, _, ["/dashboard"]} | _]},
+                      node
+                    )
+                  end)
+
+                if already_has_route do
+                  {:ok, body_zip}
+                else
+                  {:ok,
+                   Igniter.Code.Common.add_code(body_zip, ~s|live "/dashboard", DashboardLive|)}
+                end
+
+              :error ->
+                {:warning,
+                 "could not enter ash_authentication_live_session block in #{inspect(router)}"}
+            end
+          else
+            {:warning,
+             "could not find ash_authentication_live_session :authenticated_routes in #{inspect(router)}"}
+          end
+        end)
+
+      igniter
+    end
+
+    defp update_page_controller(igniter) do
+      page_controller = Igniter.Libs.Phoenix.web_module_name(igniter, "PageController")
+
+      new_home_body = """
+      case conn.assigns[:current_user] do
+        nil ->
+          render(conn, :home)
+
+        _ ->
+          redirect(conn, to: "/dashboard")
+      end
+      """
+
+      {:ok, igniter} =
+        Igniter.Project.Module.find_and_update_module(igniter, page_controller, fn zipper ->
+          case Igniter.Code.Function.move_to_def(zipper, :home, 2) do
+            {:ok, zipper} ->
+              {:ok, Igniter.Code.Common.replace_code(zipper, new_home_body)}
+
+            :error ->
+              {:warning, "could not find home/2 in #{inspect(page_controller)}"}
+          end
+        end)
+
+      igniter
+    end
+
+    defp configure_test_config(igniter, endpoint_module_name) do
+      Igniter.Project.Config.configure(
+        igniter,
+        "test.exs",
+        :phoenix_test,
+        [:endpoint],
+        {:code, Sourceror.parse_string!(inspect(endpoint_module_name))}
+      )
+    end
+
+    defp update_runtime_config(igniter, app_name, endpoint_module_name) do
+      igniter
+      |> Igniter.Project.Config.configure_runtime_env(
+        :dev,
+        app_name,
+        [endpoint_module_name, :http],
+        {:code,
+         Sourceror.parse_string!("""
+          port = String.to_integer(System.get_env("PORT", "4000"))
+         fly_6pn_ip =
+         case :inet.gethostbyname(~c'fly-local-6pn', :inet6) do {:ok, {:hostent, _, _, _, _, [ip | _]}} ->
+          ip
+
+         error ->
+          IO.inspect(error, label: "fly-local-6pn lookup failed, binding to ipv4")
+
+          # we have a safe fallback if we are running locally here
+          {0, 0, 0, 0}
+         end
+
+         IO.inspect(fly_6pn_ip, label: "binding to")
+
+           [ip: fly_6pn_ip, port: port]
+            # config :ai_bootstrap, AiBootstrapWeb.Endpoint, http: [ip: fly_6pn_ip, port: port]
+
+         """)}
+      )
     end
   end
 else
