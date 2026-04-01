@@ -102,6 +102,7 @@ if Code.ensure_loaded?(Igniter) do
       |> configure_test_config(endpoint_module_name)
       |> update_page_controller()
       |> add_dashboard_route()
+      |> update_page_html()
     end
 
     defp update_endpoint_config(igniter, endpoint_module_name) do
@@ -200,6 +201,40 @@ if Code.ensure_loaded?(Igniter) do
         "firefly_bootstrap.sh",
         File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
         on_exists: :warning
+      )
+    end
+
+    defp update_page_html(igniter) do
+      page_html = Igniter.Libs.Phoenix.web_module_name(igniter, "PageHTML")
+
+      new_contents = """
+      @moduledoc \"\"\"
+      This module contains pages rendered by PageController.
+      \"\"\"
+      use #{inspect(Igniter.Libs.Phoenix.web_module(igniter))}, :html
+
+      def home(assigns) do
+        ~H\"\"\"
+        <div class="p-8">
+          <h1 class="text-3xl font-bold mb-6">Welcome</h1>
+          <nav class="flex flex-col gap-2">
+            <.link href="/sign-in" class="text-blue-600 hover:underline">Sign in</.link>
+            <.link href="/register" class="text-blue-600 hover:underline">Create an account</.link>
+          </nav>
+        </div>
+        \"\"\"
+      end
+      """
+
+      Igniter.Project.Module.find_and_update_or_create_module(
+        igniter,
+        page_html,
+        new_contents,
+        fn zipper ->
+          {:ok, Igniter.Code.Common.replace_code(zipper, new_contents)}
+        end,
+        path:
+          "lib/#{Macro.underscore(Igniter.Libs.Phoenix.web_module(igniter))}/controllers/page_html.ex"
       )
     end
 
