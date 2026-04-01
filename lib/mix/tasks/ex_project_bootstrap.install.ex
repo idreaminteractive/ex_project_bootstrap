@@ -108,6 +108,7 @@ if Code.ensure_loaded?(Igniter) do
       |> update_conn_case()
       |> create_generator()
       |> create_helpers()
+      |> create_dashboard_live_test()
     end
 
     defp update_endpoint_config(igniter, endpoint_module_name) do
@@ -205,6 +206,39 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file(
         "firefly_bootstrap.sh",
         File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
+        on_exists: :warning
+      )
+    end
+
+    defp create_dashboard_live_test(igniter) do
+      web_module = Igniter.Libs.Phoenix.web_module(igniter)
+      test_module = Igniter.Libs.Phoenix.web_module_name(igniter, "DashboardLiveTest")
+
+      Igniter.Project.Module.create_module(
+        igniter,
+        test_module,
+        """
+        use #{inspect(web_module)}.ConnCase, async: true
+
+        import PhoenixTest
+
+        test "unauthenticated user visiting /dashboard is redirected to sign-in and sees sign in link",
+             %{conn: conn} do
+          conn
+          |> visit("/dashboard")
+          |> assert_has("a[href='/sign-in']", text: "Sign in")
+        end
+
+        test "authenticated user visiting /dashboard sees the dashboard", %{conn: conn} do
+          %{conn: conn} = insert_and_authenticate_user(%{conn: conn})
+
+          conn
+          |> visit("/dashboard")
+          |> assert_has("h1", text: "Hello")
+          |> assert_has("a[href='/sign-out']", text: "Sign out")
+        end
+        """,
+        path: "test/#{Macro.underscore(web_module)}/live/dashboard_live_test.exs",
         on_exists: :warning
       )
     end
