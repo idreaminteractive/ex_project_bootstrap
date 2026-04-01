@@ -40,6 +40,9 @@ sample of good practice (but use your discretion)
 When you're done executing code, try to compile the code, and check the
 logs or run any applicable tests to see what effect your changes have had.
 
+Always use PhoenixTest for testing web interactions, only resort
+to `{:ok, view, html} = live(conn)` if necessary.
+
 ## Tools
 
 - Never attempt to start or stop a Phoenix application. Tidewave tools work by

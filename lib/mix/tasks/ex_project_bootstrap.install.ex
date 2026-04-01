@@ -47,19 +47,20 @@ if Code.ensure_loaded?(Igniter) do
         group: :ex_project_bootstrap,
         adds_deps: [],
         installs: [
-          # {:ash, "~> 3.0"},
-          # {:ash_phoenix, "~> 2.0"},
-          # {:ash_postgres, "~> 2.0"},
-          # {:ash_authentication, "~> 4.0"},
-          # {:ash_authentication_phoenix, "~> 2.0"},
-          # {:ash_admin, "~> 0.14"},
-          # {:oban, "~> 2.0"},
-          # {:oban_web, "~> 2.0"},
-          # {:ash_oban, "~> 0.8"},
-          # {:ash_state_machine, "~> 0.2"},
-          # {:tidewave, "~> 0.5", only: [:dev]},
-          # {:usage_rules, "~> 1.0", only: [:dev]},
-          # {:error_tracker, "~> 0.8.0"}
+          {:ash, "~> 3.0"},
+          {:ash_phoenix, "~> 2.0"},
+          {:ash_postgres, "~> 2.0"},
+          {:ash_authentication, "~> 4.0"},
+          {:ash_authentication_phoenix, "~> 2.0"},
+          {:ash_admin, "~> 0.14"},
+          {:oban, "~> 2.0"},
+          {:oban_web, "~> 2.0"},
+          {:ash_oban, "~> 0.8"},
+          {:ash_state_machine, "~> 0.2"},
+          {:tidewave, "~> 0.5", only: [:dev]},
+          {:usage_rules, "~> 1.0", only: [:dev]},
+          {:error_tracker, "~> 0.8.0"},
+          {:phoenix_test, "~> 0.10.0", only: :test, runtime: false}
         ],
         # An example invocation
         example: __MODULE__.Docs.example(),
@@ -149,62 +150,75 @@ if Code.ensure_loaded?(Igniter) do
            """)}
         )
 
-      code = """
-      if Code.ensure_loaded?(Tidewave) do
+      tidewave_block = """
+      if Mix.env() == :dev do
         plug Tidewave, allow_remote_access: true
       end
       """
 
-      # find_code = """
-      # __cursor__()
-      # if code_reloading? do
-      #   __
-      # end
-      # """
-      #
-      igniter
-      |> Igniter.Project.Module.find_and_update_module(endpoint_module_name, fn zipper ->
-        alias Sourceror.Zipper
+      {:ok, igniter} =
+        igniter
+        |> Igniter.Project.Module.find_and_update_module(endpoint_module_name, fn zipper ->
+          alias Sourceror.Zipper
 
-        zip =
-          Zipper.find(zipper, fn node ->
-            case node do
-              {:if, _,
-               [
-                 {:code_reloading?, _},
-                 _
-               ]} ->
+          tidewave_zip =
+            Zipper.find(zipper, fn node ->
+              match?(
+                {:if, _,
+                 [
+                   {:==, _,
+                    [
+                      {{:., _, [{:__aliases__, _, [:Mix]}, :env]}, _, []},
+                      {:__block__, _, [:dev]}
+                    ]},
+                   _
+                 ]},
                 node
+              )
+            end)
 
-              _ ->
-                nil
+          if tidewave_zip != nil do
+            # already has if Mix.env() == :dev block — update plug Tidewave to add allow_remote_access: true
+            new_plug = Sourceror.parse_string!("plug Tidewave, allow_remote_access: true")
+
+            plug_zip =
+              Zipper.find(tidewave_zip, fn node ->
+                match?(
+                  {:plug, _, [{:__aliases__, _, [:Tidewave]} | _]},
+                  node
+                )
+              end)
+
+            if plug_zip != nil do
+              {:ok, Zipper.replace(plug_zip, new_plug)}
+            else
+              {:ok,
+               Igniter.Code.Common.add_code(tidewave_zip, tidewave_block, placement: :before)}
             end
-          end)
+          else
+            # no existing Tidewave block — insert before if code_reloading?
+            code_reloading_zip =
+              Zipper.find(zipper, fn node ->
+                match?(
+                  {:if, _, [{:code_reloading?, _, _} | _]},
+                  node
+                )
+              end)
 
-        if zip != nil do
-          Igniter.Code.Common.add_code(zip, code, placement: :before)
-        else
-          IO.puts("couuld not find it")
-        end
+            if code_reloading_zip != nil do
+              {:ok,
+               Igniter.Code.Common.add_code(code_reloading_zip, tidewave_block,
+                 placement: :before
+               )}
+            else
+              {:warning, "could not find insertion point in #{inspect(endpoint_module_name)}"}
+            end
+          end
+        end)
 
-        # case Igniter.Code.Common.move_to_cursor(zipper, find_code) do
-        #   {:ok, zipper} ->
-        #     IO.puts("1")
-        #     dbg(zipper)
-        #     Igniter.Code.Common.add_code(zipper, code, placement: :before)
-        #
-        #   :error ->
-        #     IO.puts("2")
-        #     Igniter.Code.Common.add_code(zipper, code, placement: :after)
-        #
-        #   other ->
-        #     IO.puts("oh shit, #{inspect(other)}")
-        # end
-      end)
+      igniter
 
-      # add tidewave config to allow remote 
-
-      # create our mise file
+      # create the plain html ex w/ links to sign in and register
     end
   end
 else
