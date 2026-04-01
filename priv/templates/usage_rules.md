@@ -73,4 +73,5 @@ new one
 inside matches or inside custom macros. Make sure you are inside a match or all
 necessary macros have been required", you may need to add `require Ash.Query` at
 the top
+- Avoid installing deps if possible. Some exceptions: `mdex`, `timex`
 <!-- usage_rules:end -->

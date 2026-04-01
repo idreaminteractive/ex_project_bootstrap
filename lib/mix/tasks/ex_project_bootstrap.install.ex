@@ -363,21 +363,18 @@ if Code.ensure_loaded?(Igniter) do
 
       {:ok, igniter} =
         Igniter.Project.Module.find_and_update_module(igniter, conn_case, fn zipper ->
-          dbg("HERE")
-
           already_present =
             Sourceror.Zipper.find(zipper, fn node ->
               match?({:def, _, [{:insert_and_authenticate_user, _, _} | _]}, node) or
                 match?({:def, _, [{:log_in_user, _, _} | _]}, node)
             end)
 
-          dbg(already_present)
-
           if already_present do
             {:ok, zipper}
           else
-            app_module = Igniter.Project.Module.module_name(igniter, "")
-            dbg(app_module)
+            app_module = Igniter.Project.Module.module_name_prefix(igniter)
+            app_prefix = "#{inspect(app_module)}"
+            dbg(app_prefix)
 
             {:ok,
              Igniter.Code.Common.add_code(zipper, """
@@ -392,7 +389,7 @@ if Code.ensure_loaded?(Igniter) do
              def insert_and_authenticate_user(conn)
 
              def insert_and_authenticate_user(%{conn: conn}) do
-               user = #{inspect(app_module)}.Test.Support.Generator.generate(#{inspect(app_module)}.Test.Support.Generator.user())
+               user = #{app_prefix}.Test.Support.Generator.generate(#{app_prefix}.Test.Support.Generator.user())
 
                %{conn: log_in_user(conn, user), user: user}
              end
