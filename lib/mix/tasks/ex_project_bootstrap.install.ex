@@ -104,6 +104,8 @@ if Code.ensure_loaded?(Igniter) do
       |> delete_home_heex_template()
       |> create_dashboard_live()
       |> update_conn_case()
+      |> update_conn_case_using()
+      |> update_page_controller_test()
       |> create_generator()
       |> create_helpers()
       |> create_dashboard_live_test()
@@ -323,6 +325,66 @@ if Code.ensure_loaded?(Igniter) do
         path: "test/support/helpers.ex",
         on_exists: :warning
       )
+    end
+
+    defp update_conn_case_using(igniter) do
+      conn_case = Module.concat([Igniter.Libs.Phoenix.web_module(igniter), "ConnCase"])
+
+      case Igniter.Project.Module.find_and_update_module(igniter, conn_case, fn zipper ->
+             alias Sourceror.Zipper
+
+             # Find `import WebModule.ConnCase` inside the using block — insert after it
+             import_zip =
+               Zipper.find(zipper, fn node ->
+                 match?(
+                   {:import, _, [{:__aliases__, _, [_, :ConnCase]} | _]},
+                   node
+                 )
+               end)
+
+             if import_zip != nil do
+               already_has =
+                 Zipper.find(zipper, fn node ->
+                   match?({:import, _, [{:__aliases__, _, [:PhoenixTest]} | _]}, node)
+                 end)
+
+               if already_has do
+                 {:ok, zipper}
+               else
+                 {:ok, Igniter.Code.Common.add_code(import_zip, "import PhoenixTest")}
+               end
+             else
+               {:warning, "could not find import insertion point in #{inspect(conn_case)}"}
+             end
+           end) do
+        {:ok, igniter} -> igniter
+        {:error, igniter} -> Igniter.add_warning(igniter, "could not find #{inspect(conn_case)}")
+      end
+    end
+
+    defp update_page_controller_test(igniter) do
+      web_module = Igniter.Libs.Phoenix.web_module(igniter)
+      test_module = Igniter.Libs.Phoenix.web_module_name(igniter, "PageControllerTest")
+
+      new_body = """
+      use #{inspect(web_module)}.ConnCase, async: true
+
+      test "GET /", %{conn: conn} do
+        conn
+        |> visit(~p"/")
+        |> assert_has("h1", text: "Welcome")
+      end
+      """
+
+      case Igniter.Project.Module.find_and_update_module(igniter, test_module, fn zipper ->
+             {:ok, Igniter.Code.Common.replace_code(zipper, new_body)}
+           end) do
+        {:ok, igniter} ->
+          igniter
+
+        {:error, igniter} ->
+          Igniter.add_warning(igniter, "could not find #{inspect(test_module)}")
+      end
     end
 
     defp create_generator(igniter) do
