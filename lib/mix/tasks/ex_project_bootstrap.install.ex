@@ -59,8 +59,7 @@ if Code.ensure_loaded?(Igniter) do
           {:ash_state_machine, "~> 0.2"},
           {:tidewave, "~> 0.5", only: [:dev]},
           {:usage_rules, "~> 1.0", only: [:dev]},
-          {:error_tracker, "~> 0.8.0"},
-          {:phoenix_test, "~> 0.10.0", only: :test, runtime: false}
+          {:error_tracker, "~> 0.8.0"}
         ],
         # An example invocation
         example: __MODULE__.Docs.example(),
@@ -95,6 +94,7 @@ if Code.ensure_loaded?(Igniter) do
 
       igniter
       |> copy_supporting_files()
+      |> Igniter.Project.Deps.add_dep({:phoenix_test, "~> 0.10.0", only: [:test], runtime: false})
       |> update_runtime_config(app_name, endpoint_module_name)
       |> update_endpoint_config(endpoint_module_name)
       |> configure_test_config(endpoint_module_name)
