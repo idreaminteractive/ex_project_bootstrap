@@ -88,35 +88,120 @@ if Code.ensure_loaded?(Igniter) do
     @impl Igniter.Mix.Task
     def igniter(igniter) do
       # Do your work here and return an updated igniter
+      dbg(igniter.assigns)
 
+      igniter =
+        igniter
+        |> Igniter.create_new_file(
+          "Taskfile.yml",
+          File.read!(Path.join(__DIR__, "../../../priv/templates/Taskfile.yml")),
+          on_exists: :warning
+        )
+        |> Igniter.create_new_file(
+          "pull-data.sh",
+          File.read!(Path.join(__DIR__, "../../../priv/templates/pull-data.sh")),
+          on_exists: :warning
+        )
+        |> Igniter.create_new_file(
+          "mise.toml",
+          File.read!(Path.join(__DIR__, "../../../priv/templates/mise.toml")),
+          on_exists: :warning
+        )
+        |> Igniter.create_new_file(
+          "usage_rules.md",
+          File.read!(Path.join(__DIR__, "../../../priv/templates/usage_rules.md")),
+          on_exists: :warning
+        )
+        |> Igniter.create_new_file(
+          "firefly_bootstrap.sh",
+          File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
+          on_exists: :warning
+        )
+
+      app_name = Igniter.Project.Application.app_name(igniter)
+      endpoint_module_name = Module.concat([Igniter.Libs.Phoenix.web_module(igniter), "Endpoint"])
+
+      igniter =
+        igniter
+        |> Igniter.Project.Config.configure_runtime_env(
+          :dev,
+          app_name,
+          [endpoint_module_name, :http],
+          {:code,
+           Sourceror.parse_string!("""
+            port = String.to_integer(System.get_env("PORT", "4000"))
+           fly_6pn_ip =
+           case :inet.gethostbyname(~c'fly-local-6pn', :inet6) do {:ok, {:hostent, _, _, _, _, [ip | _]}} ->
+            ip
+
+           error ->
+            IO.inspect(error, label: "fly-local-6pn lookup failed, binding to ipv4")
+
+            # we have a safe fallback if we are running locally here
+            {0, 0, 0, 0}
+           end
+
+           IO.inspect(fly_6pn_ip, label: "binding to")
+
+             [ip: fly_6pn_ip, port: port]
+              # config :ai_bootstrap, AiBootstrapWeb.Endpoint, http: [ip: fly_6pn_ip, port: port]
+
+           """)}
+        )
+
+      code = """
+      if Code.ensure_loaded?(Tidewave) do
+        plug Tidewave, allow_remote_access: true
+      end
+      """
+
+      # find_code = """
+      # __cursor__()
+      # if code_reloading? do
+      #   __
+      # end
+      # """
+      #
       igniter
-      |> Igniter.create_new_file(
-        "Taskfile.yml",
-        File.read!(Path.join(__DIR__, "../../../priv/templates/Taskfile.yml")),
-        on_exists: :warning
-      )
-      |> Igniter.create_new_file(
-        "pull-data.sh",
-        File.read!(Path.join(__DIR__, "../../../priv/templates/pull-data.sh")),
-        on_exists: :warning
-      )
-      |> Igniter.create_new_file(
-        "mise.toml",
-        File.read!(Path.join(__DIR__, "../../../priv/templates/mise.toml")),
-        on_exists: :warning
-      )
-      |> Igniter.create_new_file(
-        "usage_rules.md",
-        File.read!(Path.join(__DIR__, "../../../priv/templates/usage_rules.md")),
-        on_exists: :warning
-      )
-      |> Igniter.create_new_file(
-        "firefly_bootstrap.sh",
-        File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
-        on_exists: :warning
-      )
+      |> Igniter.Project.Module.find_and_update_module(endpoint_module_name, fn zipper ->
+        alias Sourceror.Zipper
 
-      # add the values into the runtime config
+        zip =
+          Zipper.find(zipper, fn node ->
+            case node do
+              {:if, _,
+               [
+                 {:code_reloading?, _},
+                 _
+               ]} ->
+                node
+
+              _ ->
+                nil
+            end
+          end)
+
+        if zip != nil do
+          Igniter.Code.Common.add_code(zip, code, placement: :before)
+        else
+          IO.puts("couuld not find it")
+        end
+
+        # case Igniter.Code.Common.move_to_cursor(zipper, find_code) do
+        #   {:ok, zipper} ->
+        #     IO.puts("1")
+        #     dbg(zipper)
+        #     Igniter.Code.Common.add_code(zipper, code, placement: :before)
+        #
+        #   :error ->
+        #     IO.puts("2")
+        #     Igniter.Code.Common.add_code(zipper, code, placement: :after)
+        #
+        #   other ->
+        #     IO.puts("oh shit, #{inspect(other)}")
+        # end
+      end)
+
       # add tidewave config to allow remote 
 
       # create our mise file
