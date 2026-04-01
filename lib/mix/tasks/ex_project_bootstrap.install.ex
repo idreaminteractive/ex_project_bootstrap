@@ -242,7 +242,7 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp create_helpers(igniter) do
-      app_module = Igniter.Project.Module.module_name(igniter, "")
+      app_module = Igniter.Project.Module.module_name_prefix(igniter)
       helpers_module = Igniter.Project.Module.module_name(igniter, "Test.Support.Helpers")
 
       Igniter.Project.Module.create_module(
@@ -328,7 +328,7 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp create_generator(igniter) do
-      app_module = Igniter.Project.Module.module_name(igniter, "")
+      app_module = Igniter.Project.Module.module_name_prefix(igniter)
       generator_module = Igniter.Project.Module.module_name(igniter, "Test.Support.Generator")
 
       Igniter.Project.Module.create_module(
@@ -373,8 +373,7 @@ if Code.ensure_loaded?(Igniter) do
             {:ok, zipper}
           else
             app_module = Igniter.Project.Module.module_name_prefix(igniter)
-            app_prefix = "#{inspect(app_module)}"
-            dbg(app_prefix)
+            app_prefix = inspect(app_module)
 
             {:ok,
              Igniter.Code.Common.add_code(zipper, """
