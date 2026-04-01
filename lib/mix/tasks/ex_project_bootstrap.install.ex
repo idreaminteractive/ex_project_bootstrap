@@ -106,6 +106,7 @@ if Code.ensure_loaded?(Igniter) do
       |> delete_home_heex_template()
       |> create_dashboard_live()
       |> update_conn_case()
+      |> create_generator()
     end
 
     defp update_endpoint_config(igniter, endpoint_module_name) do
@@ -203,6 +204,37 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file(
         "firefly_bootstrap.sh",
         File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
+        on_exists: :warning
+      )
+    end
+
+    defp create_generator(igniter) do
+      app_module = Igniter.Project.Module.module_name(igniter, "")
+      generator_module = Igniter.Project.Module.module_name(igniter, "Test.Support.Generator")
+
+      Igniter.Project.Module.create_module(
+        igniter,
+        generator_module,
+        """
+        use Ash.Generator
+
+        def email() do
+          sequence(:email, &"user\#{&1}@example.com")
+        end
+
+        def user(opts \\\\ []) do
+          changeset_generator(#{inspect(app_module)}.Accounts.User, :register_with_password,
+            defaults: [
+              email: email(),
+              password: "password",
+              password_confirmation: "password"
+            ],
+            overrides: opts,
+            authorize?: false
+          )
+        end
+        """,
+        path: "test/support/generator.ex",
         on_exists: :warning
       )
     end
