@@ -107,6 +107,7 @@ if Code.ensure_loaded?(Igniter) do
       |> create_dashboard_live()
       |> update_conn_case()
       |> create_generator()
+      |> create_helpers()
     end
 
     defp update_endpoint_config(igniter, endpoint_module_name) do
@@ -204,6 +205,92 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file(
         "firefly_bootstrap.sh",
         File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
+        on_exists: :warning
+      )
+    end
+
+    defp create_helpers(igniter) do
+      app_module = Igniter.Project.Module.module_name(igniter, "")
+      helpers_module = Igniter.Project.Module.module_name(igniter, "Test.Support.Helpers")
+
+      Igniter.Project.Module.create_module(
+        igniter,
+        helpers_module,
+        """
+        require Ash.Query
+
+        @doc \"\"\"
+        Generate a timestamp at the specified offset in the past.
+
+        ## Examples
+
+            iex> #{inspect(app_module)}.Support.Helpers.time_ago(5, :second)
+        \"\"\"
+        def ago(seconds, unit) when is_integer(seconds) do
+          DateTime.utc_now()
+          |> DateTime.add(-seconds, unit)
+        end
+
+        @doc \"\"\"
+        Fetch a record of the given resource by its `name` attribute.
+        Will return at most one record, or nil.
+
+        Any opts passed in as the third argument will be passed directly to
+        the read action of the resource.
+
+        ## Examples
+
+            iex> #{inspect(app_module)}.Support.Helpers.get_by_name(User, :admin)
+        \"\"\"
+        def get_by_name(resource, name, opts \\\\ []) do
+          resource
+          |> Ash.Query.for_read(:read, %{}, opts)
+          |> Ash.Query.filter(name == ^name)
+          |> Ash.read_first!()
+        end
+
+        @doc \"\"\"
+        Fetch a record of the given resource by its `name` attribute.
+        Will raise a RuntimeError if no record matches.
+
+        The bang version of the `get_by_name` helper function.
+        \"\"\"
+        def get_by_name!(resource, name, opts \\\\ []) do
+          case get_by_name(resource, name, opts) do
+            nil -> raise RuntimeError, "No results returned"
+            result -> result
+          end
+        end
+
+        # ------ Selectors --------------------------------------------------------
+
+        @doc "HTML selector for flash messages."
+        def flash(type), do: ":not(#server-error, #client-error) > div.flash-\#{type}"
+
+        def flash_type(type), do: "#flash-\#{type}"
+
+        def link(href), do: "a[href='\#{href}']"
+
+        def clickable(event_name, record \\\\ nil) do
+          if record do
+            "[phx-value-id='\#{record.id}'][phx-click='\#{event_name}']"
+          else
+            "[phx-click='\#{event_name}']"
+          end
+        end
+
+        def drain_emails do
+          receive do
+            {:email, _email} -> drain_emails()
+          after
+            0 -> :ok
+          end
+        end
+
+        def recipient_address(%{address: address}), do: address
+        def recipient_address({_, address}), do: address
+        """,
+        path: "test/support/helpers.ex",
         on_exists: :warning
       )
     end
