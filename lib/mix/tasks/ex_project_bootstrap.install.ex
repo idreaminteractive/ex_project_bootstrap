@@ -104,6 +104,7 @@ if Code.ensure_loaded?(Igniter) do
       |> add_dashboard_route()
       |> update_page_html()
       |> delete_home_heex_template()
+      |> create_dashboard_live()
     end
 
     defp update_endpoint_config(igniter, endpoint_module_name) do
@@ -201,6 +202,36 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file(
         "firefly_bootstrap.sh",
         File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
+        on_exists: :warning
+      )
+    end
+
+    defp create_dashboard_live(igniter) do
+      web_module = Igniter.Libs.Phoenix.web_module(igniter)
+      dashboard_live = Igniter.Libs.Phoenix.web_module_name(igniter, "DashboardLive")
+
+      Igniter.Project.Module.create_module(
+        igniter,
+        dashboard_live,
+        """
+        use #{inspect(web_module)}, :live_view
+
+        on_mount {#{inspect(web_module)}.LiveUserAuth, :live_user_required}
+
+        def render(assigns) do
+          ~H\"\"\"
+          <Layouts.app flash={@flash}>
+            <div class="p-8">
+              <h1 class="text-3xl font-bold mb-6">Hello</h1>
+              <.link href="/sign-out" class="text-blue-600 hover:underline">
+                Sign out
+              </.link>
+            </div>
+          </Layouts.app>
+          \"\"\"
+        end
+        """,
+        path: "lib/#{Macro.underscore(web_module)}/live/dashboard_live.ex",
         on_exists: :warning
       )
     end
