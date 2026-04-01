@@ -359,7 +359,7 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp update_conn_case(igniter) do
-      conn_case = Igniter.Project.Module.module_name(igniter, "Web.ConnCase")
+      conn_case = Module.concat([Igniter.Libs.Phoenix.web_module(igniter), "ConnCase"])
 
       {:ok, igniter} =
         Igniter.Project.Module.find_and_update_module(igniter, conn_case, fn zipper ->
