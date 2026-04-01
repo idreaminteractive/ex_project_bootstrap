@@ -97,7 +97,10 @@ if Code.ensure_loaded?(Igniter) do
 
       igniter = igniter |> update_runtime_config(app_name, endpoint_module_name)
 
-      igniter |> update_endpoint_config(endpoint_module_name)
+      igniter
+      |> update_endpoint_config(endpoint_module_name)
+      |> configure_test_config(endpoint_module_name)
+      |> update_page_controller()
     end
 
     defp update_endpoint_config(igniter, endpoint_module_name) do
@@ -196,6 +199,43 @@ if Code.ensure_loaded?(Igniter) do
         "firefly_bootstrap.sh",
         File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
         on_exists: :warning
+      )
+    end
+
+    defp update_page_controller(igniter) do
+      page_controller = Igniter.Libs.Phoenix.web_module_name(igniter, "PageController")
+
+      new_home_body = """
+      case conn.assigns[:current_user] do
+        nil ->
+          render(conn, :home)
+
+        _ ->
+          redirect(conn, to: "/dashboard")
+      end
+      """
+
+      {:ok, igniter} =
+        Igniter.Project.Module.find_and_update_module(igniter, page_controller, fn zipper ->
+          case Igniter.Code.Function.move_to_def(zipper, :home, 2) do
+            {:ok, zipper} ->
+              {:ok, Igniter.Code.Common.replace_code(zipper, new_home_body)}
+
+            :error ->
+              {:warning, "could not find home/2 in #{inspect(page_controller)}"}
+          end
+        end)
+
+      igniter
+    end
+
+    defp configure_test_config(igniter, endpoint_module_name) do
+      Igniter.Project.Config.configure(
+        igniter,
+        "test.exs",
+        :phoenix_test,
+        [:endpoint],
+        {:code, Sourceror.parse_string!(inspect(endpoint_module_name))}
       )
     end
 
