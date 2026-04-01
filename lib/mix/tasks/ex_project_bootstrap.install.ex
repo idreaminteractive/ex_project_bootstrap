@@ -90,14 +90,12 @@ if Code.ensure_loaded?(Igniter) do
     def igniter(igniter) do
       # Do your work here and return an updated igniter
 
-      igniter = igniter |> copy_supporting_files()
-
       app_name = Igniter.Project.Application.app_name(igniter)
       endpoint_module_name = Module.concat([Igniter.Libs.Phoenix.web_module(igniter), "Endpoint"])
 
-      igniter = igniter |> update_runtime_config(app_name, endpoint_module_name)
-
       igniter
+      |> copy_supporting_files()
+      |> update_runtime_config(app_name, endpoint_module_name)
       |> update_endpoint_config(endpoint_module_name)
       |> configure_test_config(endpoint_module_name)
       |> update_page_controller()
