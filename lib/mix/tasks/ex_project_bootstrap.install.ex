@@ -218,13 +218,11 @@ if Code.ensure_loaded?(Igniter) do
         """
         use #{inspect(web_module)}.ConnCase, async: true
 
-        import PhoenixTest
-
         test "unauthenticated user visiting /dashboard is redirected to sign-in and sees sign in link",
              %{conn: conn} do
           conn
-          |> visit("/dashboard")
-          |> assert_has("a[href='/sign-in']", text: "Sign in")
+          |> visit(~p"/dashboard")
+          |> assert_path(~"/sign-in")
         end
 
         test "authenticated user visiting /dashboard sees the dashboard", %{conn: conn} do
