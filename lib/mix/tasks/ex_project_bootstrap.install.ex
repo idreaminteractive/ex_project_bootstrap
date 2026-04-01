@@ -105,6 +105,7 @@ if Code.ensure_loaded?(Igniter) do
       |> update_page_html()
       |> delete_home_heex_template()
       |> create_dashboard_live()
+      |> update_conn_case()
     end
 
     defp update_endpoint_config(igniter, endpoint_module_name) do
@@ -204,6 +205,64 @@ if Code.ensure_loaded?(Igniter) do
         File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
         on_exists: :warning
       )
+    end
+
+    defp update_conn_case(igniter) do
+      conn_case = Igniter.Project.Module.module_name(igniter, "Web.ConnCase")
+
+      {:ok, igniter} =
+        Igniter.Project.Module.find_and_update_module(igniter, conn_case, fn zipper ->
+          already_present =
+            Sourceror.Zipper.find(zipper, fn node ->
+              match?({:def, _, [{:insert_and_authenticate_user, _, _} | _]}, node) or
+                match?({:def, _, [{:log_in_user, _, _} | _]}, node)
+            end)
+
+          if already_present do
+            {:ok, zipper}
+          else
+            app_module = Igniter.Project.Module.module_name(igniter, "")
+            web_module = Igniter.Libs.Phoenix.web_module(igniter)
+
+            {:ok,
+             Igniter.Code.Common.add_code(zipper, """
+             @doc \"\"\"
+             Setup helper that creates and then logs in users.
+
+                 setup :insert_and_authenticate_user
+
+             It stores an updated connection and a registered user in the
+             test context.
+             \"\"\"
+             def insert_and_authenticate_user(conn)
+
+             def insert_and_authenticate_user(%{conn: conn}) do
+               user = #{inspect(app_module)}.Test.Support.Generator.generate(#{inspect(app_module)}.Test.Support.Generator.user())
+
+               %{conn: log_in_user(conn, user), user: user}
+             end
+
+             def insert_and_authenticate_user(%Plug.Conn{} = conn) do
+               %{conn: conn}
+               |> insert_and_authenticate_user()
+               |> Map.fetch!(:conn)
+             end
+
+             @doc \"\"\"
+             Logs the given `user` into the `conn`.
+
+             It returns an updated `conn`.
+             \"\"\"
+             def log_in_user(conn, user) do
+               conn
+               |> Phoenix.ConnTest.init_test_session(%{})
+               |> AshAuthentication.Plug.Helpers.store_in_session(user)
+             end
+             """)}
+          end
+        end)
+
+      igniter
     end
 
     defp create_dashboard_live(igniter) do
