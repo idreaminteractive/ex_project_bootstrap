@@ -103,6 +103,7 @@ if Code.ensure_loaded?(Igniter) do
       |> update_page_controller()
       |> add_dashboard_route()
       |> update_page_html()
+      |> delete_home_heex_template()
     end
 
     defp update_endpoint_config(igniter, endpoint_module_name) do
@@ -202,6 +203,17 @@ if Code.ensure_loaded?(Igniter) do
         File.read!(Path.join(__DIR__, "../../../priv/templates/firefly_bootstrap.sh")),
         on_exists: :warning
       )
+    end
+
+    defp delete_home_heex_template(igniter) do
+      web_module = Igniter.Libs.Phoenix.web_module(igniter)
+      path = "lib/#{Macro.underscore(web_module)}/controllers/page_html/home.html.heex"
+
+      if File.exists?(path) do
+        File.rm!(path)
+      end
+
+      igniter
     end
 
     defp update_page_html(igniter) do
