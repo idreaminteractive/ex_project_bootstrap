@@ -1,4 +1,3 @@
-
 <!-- usage_rules:start -->
 
 # Project guidelines
@@ -15,9 +14,8 @@ ie: `mise x -- mix compile`
 - We also use `task` for many commands, like `mise x -- task test`, etc. Please
 note, we still prefix it with `mise x --`
 
-- When working on a feature, stop after each todo item and validate with
-me to ensure it is on the right track. Let me verify and be the
-human in the loop.
+- When working on a large feature, ask the user if you should stop after
+each TODO item and validate with them to ensure it is on the right track.
 
 ## Ash First
 
@@ -42,6 +40,10 @@ logs or run any applicable tests to see what effect your changes have had.
 
 Always use PhoenixTest for testing web interactions, only resort
 to `{:ok, view, html} = live(conn)` if necessary.
+
+If `sobelow` or `credo` are setup in the project, please make sure
+to run those and correct any issues that arise prior to finishing
+the task.
 
 ## Tools
 
