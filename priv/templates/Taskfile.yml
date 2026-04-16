@@ -65,3 +65,43 @@ tasks:
       - rm -f AGENTS.md
       - mix usage_rules.sync  --yes
       - cat usage_rules.md AGENTS.md > tmp.md && mv tmp.md AGENTS.md
+
+      
+  # infra + deploying
+  remote-build:
+    cmds:
+      - doppler run -- ./infra/scripts/build-push.sh
+
+  remote-infra-preview:
+    cmds:
+      - doppler run -- pulumi --cwd infra preview
+
+  remote-infra-up:
+    cmds:
+      - doppler run -- pulumi --cwd infra up
+
+  remote-setup:
+    cmds:
+      - doppler run --command 'kamal setup --version $(git rev-parse --short HEAD) --skip-push -d ${STAGE}'
+
+  remote-deploy:
+    cmds:
+      - doppler run --command 'kamal deploy --version $(git rev-parse --short HEAD) --skip-push -d ${STAGE}'
+
+  remote-logs:
+    cmds:
+      - doppler run --command 'kamal logs -d ${STAGE}'
+
+  remote-proxy-logs:
+    cmds:
+      - doppler run --command 'kamal proxy logs -f -d ${STAGE}'
+
+  remote-iex:
+    cmds:
+      - doppler run --command 'kamal iex -d ${STAGE}'
+
+  remote-shell:
+    cmds:
+      - doppler run --command 'kamal shell -d ${STAGE}'
+
+
